@@ -2,7 +2,10 @@
 
 Test build of **Tour Sim v2.1**. Play: https://jamesgregory5-svg.github.io/tour-sim-v2-test/
 
-## v2.2.2 (live now)
+## v2.2.3 (live now)
+- Fix: the chosen ball color now shows on the ball itself in rounds. Cart Chase difficulty levels are faster: top speed scales 0.6x to 1.75x from Reggie to Woods.
+
+## v2.2.2
 - Cart Chase uses the six game difficulty levels (Reggie to Woods): higher levels make your cart and the CPU carts faster.
 
 ## v2.2.1

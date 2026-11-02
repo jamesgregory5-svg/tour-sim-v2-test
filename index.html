@@ -197,7 +197,7 @@ td.l,th.l{text-align:left}
 <div id="ldr" style="position:fixed;inset:0;z-index:9999;background:#0b1014;display:flex;align-items:center;justify-content:center;color:#e8eef2;font:700 28px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;letter-spacing:.18em;transition:opacity .6s ease">LOADING…</div><div id="fps"></div><div id="gimme"><div class="gb"><b>GIMME</b><span id="gimmeS"></span></div></div>
 <script type="text/x-tour" id="gsrc">
 'use strict';
-const VERSION='v2.2.2';
+const VERSION='v2.2.3';
 const TAU=Math.PI*2,DEG=Math.PI/180;
 const clamp=(v,a,b)=>v<a?a:v>b?b:v,lerp=(a,b,t)=>a+(b-a)*t,smooth=t=>t*t*(3-2*t);
 const pad=n=>String(n).padStart(2,'0');
@@ -1116,7 +1116,7 @@ void main(){vec3 N=normalize(vN);if(!gl_FrontFacing)N=-N;vec3 V=normalize(uEye-v
    vec3 O=normalize(vO);vec3 a=abs(O);vec2 q;vec3 T,B;if(a.x>a.y&&a.x>a.z){q=O.yz/a.x;T=vec3(0.,1.,0.);B=vec3(0.,0.,1.);}else if(a.y>a.z){q=O.xz/a.y;T=vec3(1.,0.,0.);B=vec3(0.,0.,1.);}else{q=O.xy/a.z;T=vec3(1.,0.,0.);B=vec3(0.,1.,0.);}
    vec2 g=q*4.2;vec2 cg=floor(g);vec2 f=fract(g)-.5;f+=(vec2(fract(sin(dot(cg,vec2(12.9,78.2)))*437.5),fract(sin(dot(cg,vec2(39.3,11.1)))*913.7))-.5)*.12;float r=length(f);float dim=1.-smoothstep(.36,.46,r);
    float vis=1.-smoothstep(.08,.35,fwidth(g.x)+fwidth(g.y));vec3 off=(T*f.x+B*f.y)*dim*1.25*vis;N=normalize(N-off*.55);
-   float df=max(dot(N,uSun),0.);vec3 c=vec3(.86,.865,.85);float ao=1.-.16*dim*smoothstep(.15,.42,r)*vis;
+   float df=max(dot(N,uSun),0.);vec3 c=uC*vec3(.86,.865,.85);float ao=1.-.16*dim*smoothstep(.15,.42,r)*vis;
    vec3 amb=mix(uSkyHor*.55,uSkyTop*.75,N.z*.5+.5);vec3 col=c*(amb+uSunCol*df*1.05)*ao;
    vec3 H=normalize(uSun+V);float fr=.04+.96*pow(1.-max(dot(N,V),0.),5.);col+=uSunCol*pow(max(dot(N,H),0.),90.)*.9*(1.-.5*dim*vis)+skyCol(reflect(-V,N))*fr*.2;
    col=fogit(col,vP);o=vec4(pow(tm(col),vec3(1./2.2)),1.);return;}
@@ -1259,7 +1259,7 @@ function glDraw(R,cam,S){
     if(R.bldFor!==H)bldBuild(R,H);{const I4=TRS(0,0,0,1,1,1);for(const g of R.bld)draw(g.m,I4,g.c.map(v=>v*.8),0,.45)}if(SPL.on)splashDraw(R,draw);// neutral fill light: shaded walls read grey/beige, not navy
     if(S.tee)draw(R.cyl,TRS(S.tee.x,S.tee.y,S.tee.z-.05,.006,.006,.06),[1,1,1]);
     for(const t of S.teeMarks||[]){draw(R.sphere,TRS(t.x,t.y,t.z+.08,.13,.13,.11),t.col,0,.15)}
-    gl.uniform1f(u.uBallD,1);for(const b of S.extraBalls||[])draw(R.ballM,TRS(b.x,b.y,b.z+.0233,.0233,.0233,.0233),(typeof custBallRGB==="function"?custBallRGB().map(v=>v*.95):[.95,.95,.95]),0,.1);
+    gl.uniform1f(u.uBallD,1);for(const b of S.extraBalls||[])draw(R.ballM,TRS(b.x,b.y,b.z+.0233,.0233,.0233,.0233),[1,1,1],0,.1);
     if(S.ballOn){const b=S.ballPos;const dE=Math.hypot(cam.eye[0]-b[0],cam.eye[1]-b[1],cam.eye[2]-b[2]);const r=Math.max(.0233,dE*.0012*Math.min(S.ballBoost||1,1.3));/* real size; only a slim minimum so a distant ball stays a visible dot */draw(R.ballM,TRS(b[0],b[1],b[2]+r,r,r,r),(typeof custBallRGB==='function'?custBallRGB():[1,1,1]),0,.35)}gl.uniform1f(u.uBallD,0);
     gl.enable(gl.CULL_FACE)}
   // tracer (additive)
@@ -2564,7 +2564,7 @@ const CC_TRACKS=[
  {id:'hair',name:'Clubhouse Hairpins',desc:'Hairpins by the clubhouse. Brake early.',laps:3,pts:[[0,0],[140,0],[182,18],[184,56],[146,70],[112,84],[132,112],[168,124],[176,160],[134,184],[56,182],[16,160],[36,128],[4,100],[-36,96],[-48,52],[-30,12]],theme:'club'}];
 const CC_COLS=Object.assign({},BALL_COLS,{green:[.12,.6,.25]});const CC_COLN=['white','yellow','orange','red','blue','pink','black','green'];
 const CC_W=9,CC_CURB=1.3,CC_NAMES=['Bubba','Chip','Mulligan'],CC_CPUCOL=['blue','orange','green','pink','red','yellow','white','black'];
-function ccDiffS(d){const m=(DIFF[d]||DIFF[2])[1];return Math.pow(m,.75)}/* speed scale: Reggie .68 · Easy .85 · Medium 1 · Hard 1.15 · PGA 1.32 · Woods 1.52 */
+function ccDiffS(d){const m=(DIFF[d]||DIFF[2])[1];return m}/* v2.2.3: speed scale = swing multiplier (.6 .8 1 1.2 1.45 1.75) */
 function ccStore(){const v=store('ts.cart');return Object.assign({col:'red',best:{}},v&&typeof v==='object'?v:{})}
 function ccSave(o){store('ts.cart',o)}
 function ccBuildLine(pts){// closed Catmull-Rom, resampled to 1 m
@@ -2644,7 +2644,7 @@ function ccNewRace(T,col){const L=ccBuildLine(T.pts);const mesh=ccMesh(ccTrackMe
   const carts=[];const grid=[[-14,-2.4],[-14,2.4],[-22,-2.4],[-22,2.4]];
   for(let k=0;k<4;k++){const gi=(L.N+grid[k][0])%L.N;const P=L.P[gi],h=L.H[gi];const lane=grid[k][1];
     carts.push({me:k===3,name:k===3?(ownerName()||'You'):CC_NAMES[k],col:k===3?col:cpuCols[k],x:P[0]-Math.sin(h)*lane,y:P[1]+Math.cos(h)*lane,h,v:0,idx:gi,prog:grid[k][0],lane,skill:base*(1+(k-1)*.025),laps:[],lapStart:0,fin:null,best:null,wob:k*1.7})}
-  Object.assign(CC,{S,gr:9*Math.pow(S,.8),diff:d,T,L,mesh,props,carts,me:carts[3],t:-3.6,go:false,done:false,keys:{},cam:null,auto:CC.auto||false,lapsN:T.laps,hornT:0,shownRes:false})}
+  Object.assign(CC,{S,gr:9*Math.pow(S,.9),diff:d,T,L,mesh,props,carts,me:carts[3],t:-3.6,go:false,done:false,keys:{},cam:null,auto:CC.auto||false,lapsN:T.laps,hornT:0,shownRes:false})}
 function ccCurveV(L,i,look){let k=0;for(let j=0;j<look;j+=2)k=Math.max(k,L.K[(i+j)%L.N]);return k<1e-4?99:Math.min(99,Math.sqrt((CC.gr||9)/k))}
 function ccStep(dt){const L=CC.L;if(!L)return;CC.t+=dt;if(!CC.go&&CC.t>=0){CC.go=true;ccBeep(880,.35)}
   if(!CC.go){const n=Math.ceil(-CC.t);if(n!==CC.cd&&n<=3){CC.cd=n;ccBeep(440,.18)}return}
