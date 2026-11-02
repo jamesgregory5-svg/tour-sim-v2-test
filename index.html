@@ -164,7 +164,7 @@ td.l,th.l{text-align:left}
 </head>
 <body>
 <style>html.locked body>*:not(#gate){display:none!important}#gate{position:fixed;inset:0;z-index:2147483647;background:#0b1014;display:none;align-items:center;justify-content:center;flex-direction:column;font:600 16px/1.3 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#e8eef2}html.locked #gate{display:flex}#gp{font:inherit;font-size:18px;padding:12px 14px;border-radius:10px;border:1px solid #3a4a55;background:#121a20;color:#fff;width:min(78vw,300px);outline:none;text-align:center}#gp:focus{border-color:#3fe0b0}#ge{min-height:22px;margin-top:12px;color:#ff7a6a}</style>
-<div id="gate"><form id="gf" autocomplete="off" onsubmit="return false"><input id="gp" type="password" aria-label="Password" autocomplete="off" autocapitalize="off" spellcheck="false"></form><div id="ge"></div></div>
+<div id="gate"><label for="gp" id="gtitle" style="margin-bottom:14px;font-size:20px;letter-spacing:.08em">ENTER THE PASSWORD</label><form id="gf" autocomplete="off" onsubmit="return false"><input id="gp" type="password" aria-label="Password" autocomplete="off" autocapitalize="off" spellcheck="false"></form><div id="ge"></div></div>
 <script>(function(){var ok=false;try{ok=sessionStorage.getItem('ts.gate')==='1'}catch(e){}if(!ok)document.documentElement.classList.add('locked')})()</script>
 
 <canvas id="gl"></canvas>
@@ -197,7 +197,7 @@ td.l,th.l{text-align:left}
 <div id="ldr" style="position:fixed;inset:0;z-index:9999;background:#0b1014;display:flex;align-items:center;justify-content:center;color:#e8eef2;font:700 28px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;letter-spacing:.18em;transition:opacity .6s ease">LOADING…</div><div id="fps"></div><div id="gimme"><div class="gb"><b>GIMME</b><span id="gimmeS"></span></div></div>
 <script type="text/x-tour" id="gsrc">
 'use strict';
-const VERSION='v2.1.1';
+const VERSION='v2.1.2';
 const TAU=Math.PI*2,DEG=Math.PI/180;
 const clamp=(v,a,b)=>v<a?a:v>b?b:v,lerp=(a,b,t)=>a+(b-a)*t,smooth=t=>t*t*(3-2*t);
 const pad=n=>String(n).padStart(2,'0');
@@ -1125,7 +1125,7 @@ void main(){vec3 N=normalize(vN);if(!gl_FrontFacing)N=-N;vec3 V=normalize(uEye-v
   R.pTr=prog(`
 layout(location=0) in vec4 aP;uniform mat4 uVP;out vec2 vA;void main(){vA=aP.zw;gl_Position=uVP*vec4(aP.xy,0.,1.);}`.replace('vec4(aP.xy,0.,1.)','vec4(aP.xyz,1.)').replace('layout(location=0) in vec4 aP;','layout(location=0) in vec3 aP;layout(location=1) in vec2 aA;').replace('vA=aP.zw;','vA=aA;'),`
 in vec2 vA;out vec4 o;uniform vec3 uTc;uniform float uHead;
-void main(){float a=abs(vA.y);float glow=exp(-a*a*6.)*.55;float core=1.-smoothstep(.12,.32,a);float fade=smoothstep(0.,.04,vA.x)*mix(.12,1.,pow(clamp(vA.x/max(uHead,.001),0.,1.),.7));vec3 c=uTc*glow+vec3(1.,.97,.9)*core*.95;o=vec4(c*fade,1.);}`);
+void main(){float a=abs(vA.y);float glow=exp(-a*a*6.)*.55;float core=1.-smoothstep(.12,.32,a);float fade=smoothstep(0.,.04,vA.x)*mix(.12,1.,pow(clamp(vA.x/max(uHead,.001),0.,1.),.7));float al=clamp(core+glow*.8,0.,1.);vec3 c=mix(uTc,vec3(1.),.18)*al;o=vec4(c*fade,al*fade);}`);
   // ---------- buffers ----------
   const vao=(attrs,idx)=>{const v=gl.createVertexArray();gl.bindVertexArray(v);for(const a of attrs){const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,a.d,a.dyn?gl.DYNAMIC_DRAW:gl.STATIC_DRAW);gl.enableVertexAttribArray(a.loc);gl.vertexAttribPointer(a.loc,a.n,gl.FLOAT,false,0,0);if(a.inst)gl.vertexAttribDivisor(a.loc,1);a.buf=b}
     let ib=null;if(idx){ib=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ib);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,idx,gl.STATIC_DRAW)}gl.bindVertexArray(null);return{v,attrs,ib,n:idx?idx.length:0,it:idx instanceof Uint32Array?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT}};
@@ -1259,12 +1259,12 @@ function glDraw(R,cam,S){
     if(R.bldFor!==H)bldBuild(R,H);{const I4=TRS(0,0,0,1,1,1);for(const g of R.bld)draw(g.m,I4,g.c.map(v=>v*.8),0,.45)}if(SPL.on)splashDraw(R,draw);// neutral fill light: shaded walls read grey/beige, not navy
     if(S.tee)draw(R.cyl,TRS(S.tee.x,S.tee.y,S.tee.z-.05,.006,.006,.06),[1,1,1]);
     for(const t of S.teeMarks||[]){draw(R.sphere,TRS(t.x,t.y,t.z+.08,.13,.13,.11),t.col,0,.15)}
-    gl.uniform1f(u.uBallD,1);for(const b of S.extraBalls||[])draw(R.ballM,TRS(b.x,b.y,b.z+.0233,.0233,.0233,.0233),[.95,.95,.95],0,.1);
+    gl.uniform1f(u.uBallD,1);for(const b of S.extraBalls||[])draw(R.ballM,TRS(b.x,b.y,b.z+.0233,.0233,.0233,.0233),(typeof custBallRGB==="function"?custBallRGB().map(v=>v*.95):[.95,.95,.95]),0,.1);
     if(S.ballOn){const b=S.ballPos;const dE=Math.hypot(cam.eye[0]-b[0],cam.eye[1]-b[1],cam.eye[2]-b[2]);const r=Math.max(.0233,dE*.0012*Math.min(S.ballBoost||1,1.3));/* real size; only a slim minimum so a distant ball stays a visible dot */draw(R.ballM,TRS(b[0],b[1],b[2]+r,r,r,r),(typeof custBallRGB==='function'?custBallRGB():[1,1,1]),0,.35)}gl.uniform1f(u.uBallD,0);
     gl.enable(gl.CULL_FACE)}
   // tracer (additive)
   if(R.tracerN>2){const p=R.pTr;gl.useProgram(p.p);gl.uniformMatrix4fv(p.u.uVP,false,VP);gl.uniform3fv(p.u.uTc,S.tracerCol||[1,.55,.15]);gl.uniform1f(p.u.uHead,S.tracerHead||1);
-    gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);gl.depthMask(false);gl.disable(gl.CULL_FACE);gl.bindVertexArray(R.tracer.v);gl.drawArrays(gl.TRIANGLE_STRIP,0,R.tracerN);gl.depthMask(true);gl.disable(gl.BLEND);gl.enable(gl.CULL_FACE)}
+    gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);gl.disable(gl.CULL_FACE);gl.bindVertexArray(R.tracer.v);gl.drawArrays(gl.TRIANGLE_STRIP,0,R.tracerN);gl.depthMask(true);gl.disable(gl.BLEND);gl.enable(gl.CULL_FACE)}
   gl.bindVertexArray(null);
   R.lastVP=VP;return VP}
 function glTracer(R,pts,n,eye,frac,fN,H){if(fN===undefined)fN=n;
