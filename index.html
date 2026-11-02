@@ -197,7 +197,7 @@ td.l,th.l{text-align:left}
 <div id="ldr" style="position:fixed;inset:0;z-index:9999;background:#0b1014;display:flex;align-items:center;justify-content:center;color:#e8eef2;font:700 28px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;letter-spacing:.18em;transition:opacity .6s ease">LOADING…</div><div id="fps"></div><div id="gimme"><div class="gb"><b>GIMME</b><span id="gimmeS"></span></div></div>
 <script type="text/x-tour" id="gsrc">
 'use strict';
-const VERSION='v2.1.2';
+const VERSION='v2.2';
 const TAU=Math.PI*2,DEG=Math.PI/180;
 const clamp=(v,a,b)=>v<a?a:v>b?b:v,lerp=(a,b,t)=>a+(b-a)*t,smooth=t=>t*t*(3-2*t);
 const pad=n=>String(n).padStart(2,'0');
@@ -1712,7 +1712,7 @@ function endIntro(){$('intro').classList.remove('on');$('hud').classList.remove(
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 // ---------- frame loop ----------
 const PERF={ft:[],js:[],n:0,acc:0,lowAt:0};
-function frame(now){requestAnimationFrame(frame);const _t0=performance.now();
+function frame(now){requestAnimationFrame(frame);if(G.cartOn)return;const _t0=performance.now();
   const dt=Math.min(.05,(now-(G.last||now))/1000)*(G.ts||1);G.last=now;G.time+=dt;
   PERF.ft.push(dt*1000);if(PERF.ft.length>240)PERF.ft.shift();
   if(!G.H||G.mode==='menu'&&!G.bg){return}
@@ -2555,6 +2555,192 @@ function showStandings(t,final){const T=tnTable(t);const me=T.rows.find(r=>r.me)
    const tb=document.createElement('button');tb.className='btn alt';tb.id='mTour';tb.innerHTML=t&&!t.done&&!busy?`Resume tournament<small>${esc(CID[t.cid].name)} · round ${t.me.length+1} of 4</small>`:`Tournament<small>4 rounds · 72 holes · vs a CPU field</small>`;tb.onclick=()=>{const t2=tnLoad();if(t2&&!t2.done&&!busy){showStandings(t2,false)}else showTourSetup()};
    const cb=document.createElement('button');cb.className='btn alt';cb.id='mCust';cb.innerHTML='Customization<small>Ball color · ball trail · hole explosion</small>';cb.onclick=showCustom;
    const play=$('mPlay');play.after(tb);tb.after(cb)}}catch(e){console.warn(e)}return out}}
+
+/* ================= v2.2: Cart Part Only — Cart Chase mini game (made-up tracks, own small WebGL renderer) ================= */
+const CC_TRACKS=[
+ {id:'oval',name:'Fairway Oval',desc:'Fast and flowing. Good for a first race.',laps:3,pts:[[0,0],[120,0],[165,25],[178,80],[140,122],[60,130],[0,112],[-38,70],[-35,20]],theme:'park'},
+ {id:'pines',name:'Pine Twister',desc:'S-bends through a pine forest.',laps:3,pts:[[0,0],[90,0],[135,22],[128,70],[88,86],[72,120],[100,152],[150,150],[178,188],[140,228],[50,222],[0,190],[16,140],[-24,100],[-42,48],[-28,10]],theme:'pines'},
+ {id:'lake',name:'Lakeside Loop',desc:'Round the lake with a tight hairpin.',laps:3,pts:[[0,0],[110,0],[152,22],[160,64],[140,110],[104,140],[76,166],[42,172],[8,150],[-28,128],[-40,80],[-32,28]],theme:'lake',pond:[62,78,34]},
+ {id:'hair',name:'Clubhouse Hairpins',desc:'Hairpins by the clubhouse. Brake early.',laps:3,pts:[[0,0],[140,0],[182,18],[184,56],[146,70],[112,84],[132,112],[168,124],[176,160],[134,184],[56,182],[16,160],[36,128],[4,100],[-36,96],[-48,52],[-30,12]],theme:'club'}];
+const CC_COLS=Object.assign({},BALL_COLS,{green:[.12,.6,.25]});const CC_COLN=['white','yellow','orange','red','blue','pink','black','green'];
+const CC_W=9,CC_CURB=1.3,CC_NAMES=['Bubba','Chip','Mulligan'],CC_CPUCOL=['blue','orange','green','pink','red','yellow','white','black'];
+function ccStore(){const v=store('ts.cart');return Object.assign({col:'red',best:{}},v&&typeof v==='object'?v:{})}
+function ccSave(o){store('ts.cart',o)}
+function ccBuildLine(pts){// closed Catmull-Rom, resampled to 1 m
+  const n=pts.length,raw=[];for(let i=0;i<n;i++){const p0=pts[(i-1+n)%n],p1=pts[i],p2=pts[(i+1)%n],p3=pts[(i+2)%n];for(let k=0;k<40;k++){const t=k/40,t2=t*t,t3=t2*t;
+    raw.push([.5*((2*p1[0])+(-p0[0]+p2[0])*t+(2*p0[0]-5*p1[0]+4*p2[0]-p3[0])*t2+(-p0[0]+3*p1[0]-3*p2[0]+p3[0])*t3),.5*((2*p1[1])+(-p0[1]+p2[1])*t+(2*p0[1]-5*p1[1]+4*p2[1]-p3[1])*t2+(-p0[1]+3*p1[1]-3*p2[1]+p3[1])*t3)])}}
+  const Q=[raw[0].slice()];let need=1,cx=raw[0][0],cy=raw[0][1];for(let i=1;i<=raw.length;i++){const b=raw[i%raw.length];let dx=b[0]-cx,dy=b[1]-cy,d=Math.hypot(dx,dy);
+    while(d>=need){cx+=dx/d*need;cy+=dy/d*need;Q.push([cx,cy]);dx=b[0]-cx;dy=b[1]-cy;d=Math.hypot(dx,dy);need=1}need-=d;cx=b[0];cy=b[1]}
+  if(Math.hypot(Q[Q.length-1][0]-Q[0][0],Q[Q.length-1][1]-Q[0][1])<.5)Q.pop();
+  const N=Q.length,H=[],K=[];for(let i=0;i<N;i++){const a=Q[(i-1+N)%N],b=Q[(i+1)%N];H.push(Math.atan2(b[1]-a[1],b[0]-a[0]))}
+  for(let i=0;i<N;i++){let d=H[(i+3)%N]-H[(i-3+N)%N];while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;K.push(Math.abs(d)/6)}
+  return{P:Q,H,K,N}}
+function ccNear(L,x,y,hint){let bi=hint,bd=1e18;const N=L.N;const span=hint==null?N:40;for(let k=-span;k<=span;k++){const i=hint==null?((k+N)%N):((hint+k)%N+N)%N;const p=L.P[i];const d=(p[0]-x)**2+(p[1]-y)**2;if(d<bd){bd=d;bi=i}}
+  const p=L.P[bi],h=L.H[bi];const lat=-(x-p[0])*Math.sin(h)+(y-p[1])*Math.cos(h);return{i:bi,lat}}
+function ccMinGap(L){let m=1e9;for(let i=0;i<L.N;i+=3)for(let j=0;j<L.N;j+=3){const di=Math.min(Math.abs(i-j),L.N-Math.abs(i-j));if(di<60)continue;const d=Math.hypot(L.P[i][0]-L.P[j][0],L.P[i][1]-L.P[j][1]);if(d<m)m=d}return m}
+// ---------- renderer ----------
+const CCR={};
+function ccGL(){if(CCR.gl)return CCR;let cv=$('ccv');if(!cv){cv=document.createElement('canvas');cv.id='ccv';cv.style.cssText='position:fixed;inset:0;width:100%;height:100%;z-index:40;display:none;touch-action:none';document.body.appendChild(cv)}
+  const gl=cv.getContext('webgl2',{antialias:true});CCR.cv=cv;CCR.gl=gl;
+  const sh=(t,s)=>{const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);if(!gl.getShaderParameter(o,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(o));return o};
+  const p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_SHADER,`#version 300 es
+in vec3 aP;in vec3 aC;uniform mat4 uM,uVP;uniform vec3 uT,uE;out vec3 vC;out float vD;void main(){vec4 w=uM*vec4(aP,1.);gl_Position=uVP*w;vC=aC*uT;vD=length(w.xyz-uE);}`));
+  gl.attachShader(p,sh(gl.FRAGMENT_SHADER,`#version 300 es
+precision mediump float;in vec3 vC;in float vD;uniform vec3 uSky;out vec4 o;void main(){float f=clamp((vD-90.)/380.,0.,.85);o=vec4(mix(vC,uSky,f),1.);}`));
+  gl.linkProgram(p);CCR.p=p;CCR.u={};for(const n of['uM','uVP','uT','uE','uSky'])CCR.u[n]=gl.getUniformLocation(p,n);
+  CCR.cube=ccMesh(ccCubeTris());return CCR}
+function ccMesh(a){const gl=CCR.gl;const v=gl.createVertexArray();gl.bindVertexArray(v);const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(a),gl.STATIC_DRAW);
+  const lp=gl.getAttribLocation(CCR.p,'aP'),lc=gl.getAttribLocation(CCR.p,'aC');gl.enableVertexAttribArray(lp);gl.vertexAttribPointer(lp,3,gl.FLOAT,false,24,0);gl.enableVertexAttribArray(lc);gl.vertexAttribPointer(lc,3,gl.FLOAT,false,24,12);return{v,n:a.length/6}}
+function ccCubeTris(){const o=[];const f=(a,b,c,d,s)=>{for(const q of[a,b,c,a,c,d])o.push(q[0],q[1],q[2],s,s,s)};const V=(x,y,z)=>[x-.5,y-.5,z-.5];
+  f(V(0,0,1),V(1,0,1),V(1,1,1),V(0,1,1),1);f(V(1,0,0),V(1,1,0),V(1,1,1),V(1,0,1),.86);f(V(0,0,0),V(0,0,1),V(0,1,1),V(0,1,0),.62);f(V(0,0,0),V(1,0,0),V(1,0,1),V(0,0,1),.74);f(V(0,1,0),V(0,1,1),V(1,1,1),V(1,1,0),.7);f(V(0,0,0),V(0,1,0),V(1,1,0),V(1,0,0),.4);return o}
+function ccTRS(x,y,z,h,sx,sy,sz,ox,oy,oz){const c=Math.cos(h),s=Math.sin(h);return new Float32Array([c*sx,s*sx,0,0,-s*sy,c*sy,0,0,0,0,sz,0,x+c*ox-s*oy,y+s*ox+c*oy,z+oz,1])}
+const CC_I4=new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);
+function ccPersp(fov,asp,n,f){const t=1/Math.tan(fov/2);return new Float32Array([t/asp,0,0,0,0,t,0,0,0,0,(f+n)/(n-f),-1,0,0,2*f*n/(n-f),0])}
+function ccLook(e,t){const z=[e[0]-t[0],e[1]-t[1],e[2]-t[2]];let l=Math.hypot(...z);z[0]/=l;z[1]/=l;z[2]/=l;const up=[0,0,1];const x=[up[1]*z[2]-up[2]*z[1],up[2]*z[0]-up[0]*z[2],up[0]*z[1]-up[1]*z[0]];l=Math.hypot(...x);x[0]/=l;x[1]/=l;x[2]/=l;const y=[z[1]*x[2]-z[2]*x[1],z[2]*x[0]-z[0]*x[2],z[0]*x[1]-z[1]*x[0]];
+  return new Float32Array([x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-(x[0]*e[0]+x[1]*e[1]+x[2]*e[2]),-(y[0]*e[0]+y[1]*e[1]+y[2]*e[2]),-(z[0]*e[0]+z[1]*e[1]+z[2]*e[2]),1])}
+function ccMul(a,b){const o=new Float32Array(16);for(let i=0;i<4;i++)for(let j=0;j<4;j++){let s=0;for(let k=0;k<4;k++)s+=a[k*4+j]*b[i*4+k];o[i*4+j]=s}return o}
+function ccTrackMesh(T,L){const o=[];const tri=(a,b,c,col)=>{for(const q of[a,b,c])o.push(q[0],q[1],q[2],col[0],col[1],col[2])};const quad=(a,b,c,d,col)=>{tri(a,b,c,col);tri(a,c,d,col)};
+  const R=RNG('cc'+T.id);const th=T.theme;const gA=th==='pines'?[.24,.42,.2]:[.33,.56,.25],gB=th==='pines'?[.27,.46,.22]:[.37,.6,.28];
+  // ground checker for motion cues
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(const p of L.P){x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1])}
+  const G0=[x0-260,y0-260],G1=[x1+260,y1+260],C=20;for(let gx=G0[0];gx<G1[0];gx+=C)for(let gy=G0[1];gy<G1[1];gy+=C){const k=((Math.floor(gx/C)+Math.floor(gy/C))&1);const j=R()*.04;const c=(k?gA:gB).map(v=>v+j);quad([gx,gy,0],[gx+C,gy,0],[gx+C,gy+C,0],[gx,gy+C,0],c)}
+  // pond
+  if(T.pond){const [px,py,pr]=T.pond;for(let k=0;k<36;k++){const a=k/36*Math.PI*2,b=(k+1)/36*Math.PI*2;tri([px,py,.03],[px+Math.cos(a)*(pr+4),py+Math.sin(a)*(pr+4),.03],[px+Math.cos(b)*(pr+4),py+Math.sin(b)*(pr+4),.03],[.86,.8,.6]);tri([px,py,.05],[px+Math.cos(a)*pr,py+Math.sin(a)*pr,.05],[px+Math.cos(b)*pr,py+Math.sin(b)*pr,.05],[.16,.38,.62])}}
+  // track ribbon + curbs + runoff edge
+  const N=L.N;for(let i=0;i<N;i++){const j=(i+1)%N;const A=L.P[i],B=L.P[j],ha=L.H[i],hb=L.H[j];const na=[-Math.sin(ha),Math.cos(ha)],nb=[-Math.sin(hb),Math.cos(hb)];
+    const at=(P,n,d,z)=>[P[0]+n[0]*d,P[1]+n[1]*d,z];const w=CC_W/2;const sh=(i>>2)&1?.47:.5;
+    quad(at(A,na,-w,.06),at(B,nb,-w,.06),at(B,nb,w,.06),at(A,na,w,.06),[sh+.05,sh+.04,sh]);
+    const cc=((i/3)|0)&1?[.92,.92,.9]:[.82,.12,.1];quad(at(A,na,w,.08),at(B,nb,w,.08),at(B,nb,w+CC_CURB,.08),at(A,na,w+CC_CURB,.08),cc);quad(at(A,na,-w-CC_CURB,.08),at(B,nb,-w-CC_CURB,.08),at(B,nb,-w,.08),at(A,na,-w,.08),cc);
+    if(th!=='park'){const sd=[.84,.78,.58];quad(at(A,na,w+CC_CURB,.07),at(B,nb,w+CC_CURB,.07),at(B,nb,w+CC_CURB+3,.07),at(A,na,w+CC_CURB+3,.07),sd);quad(at(A,na,-w-CC_CURB-3,.07),at(B,nb,-w-CC_CURB-3,.07),at(B,nb,-w-CC_CURB,.07),at(A,na,-w-CC_CURB,.07),sd)}}
+  // finish line checker
+  {const P=L.P[0],h=L.H[0],t=[Math.cos(h),Math.sin(h)],n=[-Math.sin(h),Math.cos(h)];const cs=CC_W/8;for(let a=0;a<8;a++)for(let b=0;b<2;b++){const c=(a+b)&1?[.05,.05,.05]:[.97,.97,.97];const u0=-CC_W/2+a*cs,v0=b*cs-cs;const p=(u,v)=>[P[0]+n[0]*u+t[0]*v,P[1]+n[1]*u+t[1]*v,.1];quad(p(u0,v0),p(u0,v0+cs),p(u0+cs,v0+cs),p(u0+cs,v0),c)}}
+  return o}
+function ccProps(T,L){// boxes: [x,y,z,h,sx,sy,sz,col]
+  const B=[];const R=RNG('ccp'+T.id);const P0=L.P[0],h0=L.H[0],n0=[-Math.sin(h0),Math.cos(h0)];const w=CC_W/2+CC_CURB+1.2;
+  for(const s of[-1,1])B.push([P0[0]+n0[0]*w*s,P0[1]+n0[1]*w*s,2.6,h0,.5,.5,5.2,[.95,.95,.95]]);
+  B.push([P0[0],P0[1],5.2,h0,.7,2*w+.5,1.1,[.08,.08,.08]]);B.push([P0[0],P0[1],5.2,h0,.75,2*w-1.5,.55,[.95,.85,.15]]);
+  // grandstand beside the start straight
+  {const t=[Math.cos(h0),Math.sin(h0)];for(let k=0;k<4;k++){const d=-(w+7+k*2.2);B.push([P0[0]-t[0]*30+n0[0]*d,P0[1]-t[1]*30+n0[1]*d,.8+k*.9,h0,30,2.2,1.6+k*1.8,[.55,.58,.62]])}
+    B.push([P0[0]-t[0]*30+n0[0]*-(w+15),P0[1]-t[1]*30+n0[1]*-(w+15),5,h0,32,.4,10,[.15,.3,.55]])}
+  if(T.theme==='club'){const P=L.P[(L.N*0.55)|0];B.push([P[0]+40,P[1]-10,4,0,26,16,8,[.88,.84,.76]]);B.push([P[0]+40,P[1]-10,9.2,0,28,18,2.4,[.45,.2,.16]])}
+  // trees and bushes
+  const nT=T.theme==='pines'?220:T.theme==='park'?90:120;let tries=0;const trees=[];
+  while(trees.length<nT&&tries<6000){tries++;const p=L.P[(R()*L.N)|0];const a=R()*Math.PI*2,d=12+R()*(T.theme==='pines'?45:80);const x=p[0]+Math.cos(a)*d,y=p[1]+Math.sin(a)*d;
+    const q=ccNear(L,x,y,null);if(Math.abs(q.lat)<CC_W/2+CC_CURB+6)continue;if(T.pond&&Math.hypot(x-T.pond[0],y-T.pond[1])<T.pond[2]+7)continue;if(Math.hypot(x-P0[0],y-P0[1])<45)continue;trees.push([x,y])}
+  for(const [x,y] of trees){const s=.8+R()*.6;if(T.theme==='pines'){B.push([x,y,1.5*s,0,.5,.5,3*s,[.4,.28,.16]]);for(let k=0;k<3;k++){const r=(3.4-k*.9)*s;B.push([x,y,(3+k*2.1)*s,k*.6,r,r,2.2*s,[.12,.32+k*.03,.16]])}}
+    else{B.push([x,y,1.6*s,0,.6,.6,3.2*s,[.42,.3,.18]]);B.push([x,y,4.6*s,R()*3,4.6*s,4.6*s,3.6*s,[.2,.45+R()*.1,.18]]);B.push([x,y,6.4*s,R()*3,3*s,3*s,2*s,[.24,.52,.2]])}}
+  return B}
+// ---------- game state ----------
+const CC={};window.CC=CC;
+function ccNewRace(T,col){const L=ccBuildLine(T.pts);const mesh=ccMesh(ccTrackMesh(T,L));const props=ccProps(T,L);
+  const cpuCols=CC_CPUCOL.filter(c=>c!==col).slice(0,3);const d=typeof diffI==='function'?diffI():2;const base=[.84,.89,.93,.97,1.01,1.05][d]||.93;
+  const carts=[];const grid=[[-14,-2.4],[-14,2.4],[-22,-2.4],[-22,2.4]];
+  for(let k=0;k<4;k++){const gi=(L.N+grid[k][0])%L.N;const P=L.P[gi],h=L.H[gi];const lane=grid[k][1];
+    carts.push({me:k===3,name:k===3?(ownerName()||'You'):CC_NAMES[k],col:k===3?col:cpuCols[k],x:P[0]-Math.sin(h)*lane,y:P[1]+Math.cos(h)*lane,h,v:0,idx:gi,prog:grid[k][0],lane,skill:base*(1+(k-1)*.025),laps:[],lapStart:0,fin:null,best:null,wob:k*1.7})}
+  Object.assign(CC,{T,L,mesh,props,carts,me:carts[3],t:-3.6,go:false,done:false,keys:{},cam:null,auto:CC.auto||false,lapsN:T.laps,hornT:0,shownRes:false})}
+function ccCurveV(L,i,look){let k=0;for(let j=0;j<look;j+=2)k=Math.max(k,L.K[(i+j)%L.N]);return k<1e-4?99:Math.min(99,Math.sqrt(9/k))}
+function ccStep(dt){const L=CC.L;if(!L)return;CC.t+=dt;if(!CC.go&&CC.t>=0){CC.go=true;ccBeep(880,.35)}
+  if(!CC.go){const n=Math.ceil(-CC.t);if(n!==CC.cd&&n<=3){CC.cd=n;ccBeep(440,.18)}return}
+  for(const c of CC.carts){if(c.fin!=null&&!c.me){/* coast */}
+    let thr=0,brk=0,st=0;
+    if(c.me&&!CC.auto&&c.fin==null){const K=CC.keys;thr=K.up?1:0;brk=K.down?1:0;st=(K.left?1:0)-(K.right?1:0)}
+    else if(c.fin!=null&&c.me){brk=c.v>0?.4:0}
+    else{// follower AI (also used by test autopilot)
+      const la=(c.idx+Math.max(6,Math.round(c.v*.7)))%L.N;const P=L.P[la],h=L.H[la];const lane=c.me?0:c.lane*Math.cos(CC.t*.25+c.wob);const tx=P[0]-Math.sin(h)*lane,ty=P[1]+Math.cos(h)*lane;
+      let d=Math.atan2(ty-c.y,tx-c.x)-c.h;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;st=clamp(d*2.4,-1,1);
+      const vt=Math.min(13.2*(c.me?1:c.skill),ccCurveV(L,c.idx,30));if(c.v<vt)thr=1;else if(c.v>vt+.6)brk=1}
+    const q=ccNear(L,c.x,c.y,c.idx);const on=Math.abs(q.lat)<=CC_W/2+CC_CURB;const vmax=on?14:5.5;
+    if(thr&&c.v<vmax)c.v+=7*dt*(1-c.v/(vmax+2));if(c.v>vmax)c.v-=(c.v-vmax)*2.2*dt;if(brk)c.v=c.v>0?Math.max(0,c.v-15*dt):Math.max(-3,c.v-4*dt);if(!thr&&!brk)c.v*=1-.5*dt;
+    const yr=Math.min(1.9,9/Math.max(1,Math.abs(c.v)))*clamp(Math.abs(c.v)/4,0,1)*Math.sign(c.v||1);c.h+=st*yr*dt;
+    c.x+=Math.cos(c.h)*c.v*dt;c.y+=Math.sin(c.h)*c.v*dt;
+    const q2=ccNear(L,c.x,c.y,c.idx);let di=q2.i-c.idx;if(di>L.N/2)di-=L.N;if(di<-L.N/2)di+=L.N;c.prog+=di;c.idx=q2.i;
+    if(Math.abs(q2.lat)>CC_W/2+40){const P=L.P[q2.i],h=L.H[q2.i];c.x=P[0];c.y=P[1];c.h=h;c.v=0}// way off: reset to the track
+    const lapsDone=Math.floor(c.prog/L.N);if(c.prog>=0&&c.lapN==null){c.lapN=0;c.lapStart=CC.t}
+    if(c.lapN!=null&&lapsDone>c.lapN&&c.fin==null){const lt=CC.t-c.lapStart;c.laps.push(lt);c.best=c.best==null?lt:Math.min(c.best,lt);c.lapN=lapsDone;c.lapStart=CC.t;if(c.laps.length>=CC.lapsN){c.fin=CC.t;if(c.me)ccPlayerDone()}else if(c.me)ccFlash('Lap '+(c.laps.length+1)+' of '+CC.lapsN)}}
+  // soft cart-to-cart push
+  const C=CC.carts;for(let i=0;i<C.length;i++)for(let j=i+1;j<C.length;j++){const a=C[i],b=C[j];const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);if(d<2.3&&d>1e-3){const p=(2.3-d)/2;a.x-=dx/d*p;a.y-=dy/d*p;b.x+=dx/d*p;b.y+=dy/d*p}}
+  if(CC.me.fin!=null&&!CC.shownRes&&CC.t-CC.me.fin>2.2)ccResults()}
+function ccOrder(){return CC.carts.slice().sort((a,b)=>(a.fin!=null&&b.fin!=null)?a.fin-b.fin:(a.fin!=null?-1:b.fin!=null?1:b.prog-a.prog))}
+function ccFmt(t){if(t==null||!isFinite(t))return '—';const m=Math.floor(t/60),s=t-m*60;return m+':'+(s<10?'0':'')+s.toFixed(2)}
+function ccPlayerDone(){ccFlash('Finished!');const s=ccStore();const b=s.best[CC.T.id]||{};const me=CC.me;CC.newBest=me.best!=null&&(b.lap==null||me.best<b.lap);CC.newRace=b.t==null||me.fin<b.t;
+  if(CC.newBest)b.lap=+me.best.toFixed(3);if(CC.newRace)b.t=+me.fin.toFixed(3);s.best[CC.T.id]=b;ccSave(s)}
+// ---------- drawing ----------
+function ccDraw(){const R=CCR,gl=R.gl,cv=R.cv;const dpr=Math.min(devicePixelRatio||1,1.5);const W=Math.round(cv.clientWidth*dpr),H=Math.round(cv.clientHeight*dpr);if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H}
+  gl.viewport(0,0,W,H);const sky=[.62,.78,.93];gl.clearColor(sky[0],sky[1],sky[2],1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.enable(gl.DEPTH_TEST);gl.useProgram(R.p);
+  const me=CC.me;const want={x:me.x-Math.cos(me.h)*7.5,y:me.y-Math.sin(me.h)*7.5,z:3.3,h:me.h};
+  if(!CC.cam)CC.cam=Object.assign({},want);else{const k=1-Math.exp(-(CC.dtLast||.016)*5);let dh=want.h-CC.cam.h;while(dh>Math.PI)dh-=2*Math.PI;while(dh<-Math.PI)dh+=2*Math.PI;CC.cam.h+=dh*k;
+    CC.cam.x=me.x-Math.cos(CC.cam.h)*7.5;CC.cam.y=me.y-Math.sin(CC.cam.h)*7.5;CC.cam.z+=(want.z-CC.cam.z)*k}
+  const e=[CC.cam.x,CC.cam.y,CC.cam.z],t=[me.x+Math.cos(CC.cam.h)*6,me.y+Math.sin(CC.cam.h)*6,1.1];
+  const VP=ccMul(ccPersp(1.05,W/H,.3,900),ccLook(e,t));gl.uniformMatrix4fv(R.u.uVP,false,VP);gl.uniform3fv(R.u.uE,e);gl.uniform3fv(R.u.uSky,sky);
+  gl.uniformMatrix4fv(R.u.uM,false,CC_I4);gl.uniform3fv(R.u.uT,[1,1,1]);gl.bindVertexArray(CC.mesh.v);gl.drawArrays(gl.TRIANGLES,0,CC.mesh.n);
+  gl.bindVertexArray(R.cube.v);const box=(b)=>{gl.uniformMatrix4fv(R.u.uM,false,ccTRS(b[0],b[1],b[2],b[3],b[4],b[5],b[6],0,0,0));gl.uniform3fv(R.u.uT,b[7]);gl.drawArrays(gl.TRIANGLES,0,R.cube.n)};
+  for(const b of CC.props)box(b);
+  for(const c of CC.carts)ccCartDraw(c,gl,R)}
+function ccCartDraw(c,gl,R){const col=CC_COLS[c.col]||[1,1,1];const part=(ox,oy,oz,sx,sy,sz,cl)=>{gl.uniformMatrix4fv(R.u.uM,false,ccTRS(c.x,c.y,0,c.h,sx,sy,sz,ox,oy,oz));gl.uniform3fv(R.u.uT,cl);gl.drawArrays(gl.TRIANGLES,0,R.cube.n)};
+  const blk=[.06,.06,.07],wh=[.95,.95,.93],dk=col.map(v=>v*.7);
+  part(0,0,.62,2.5,1.3,.55,col);part(.95,0,.95,.55,1.28,.35,col);part(-.25,0,1.05,.7,1.2,.5,[.18,.18,.2]);part(-.55,0,1.45,.25,1.2,.8,dk);
+  for(const s of[-1,1]){part(.85,s*.58,1.6,.08,.08,1.6,[.2,.2,.22]);part(-.95,s*.58,1.6,.08,.08,1.6,[.2,.2,.22])}
+  part(-.05,0,2.42,2.2,1.4,.1,wh);part(-1.1,0,.9,.4,1.1,.6,[.3,.3,.32]);
+  for(const [ox,oy] of[[.8,.62],[.8,-.62],[-.8,.62],[-.8,-.62]])part(ox,oy,.28,.56,.24,.56,blk);
+  part(1.27,.42,.75,.04,.22,.14,[1,1,.8]);part(1.27,-.42,.75,.04,.22,.14,[1,1,.8]);if(c.me&&CC.hornT>0)part(1.3,0,.75,.05,.3,.1,[1,.9,.2])}
+// ---------- audio ----------
+function ccAC(){try{if(!CC.ac)CC.ac=new (window.AudioContext||window.webkitAudioContext)();if(CC.ac.state==='suspended')CC.ac.resume();return CC.ac}catch(e){return null}}
+function ccBeep(f,d){const a=ccAC();if(!a)return;const o=a.createOscillator(),g=a.createGain();o.type='sine';o.frequency.value=f;g.gain.setValueAtTime(.15,a.currentTime);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+d);o.connect(g).connect(a.destination);o.start();o.stop(a.currentTime+d)}
+function ccHorn(){CC.hornT=.45;CC.horns=(CC.horns||0)+1;const a=ccAC();if(!a)return;const g=a.createGain();g.gain.setValueAtTime(.0001,a.currentTime);g.gain.exponentialRampToValueAtTime(.18,a.currentTime+.03);g.gain.setValueAtTime(.18,a.currentTime+.32);g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+.45);g.connect(a.destination);
+  for(const f of[392,494]){const o=a.createOscillator();o.type='square';o.frequency.value=f;const lp=a.createBiquadFilter();lp.type='lowpass';lp.frequency.value=1800;o.connect(lp).connect(g);o.start();o.stop(a.currentTime+.46)}}
+function ccEngine(){const a=ccAC();if(!a||CC.eng)return;const o=a.createOscillator(),g=a.createGain();o.type='sawtooth';o.frequency.value=40;const lp=a.createBiquadFilter();lp.type='lowpass';lp.frequency.value=400;g.gain.value=.0;o.connect(lp).connect(g).connect(a.destination);o.start();CC.eng={o,g}}
+function ccEngineUpd(){if(!CC.eng)return;const v=Math.abs(CC.me.v);CC.eng.o.frequency.value=38+v*7;CC.eng.g.gain.value=CC.go&&!CC.shownRes?.025+v*.003:0}
+function ccEngineStop(){if(CC.eng){try{CC.eng.o.stop()}catch(e){}CC.eng=null}}
+// ---------- HUD / screens ----------
+function ccHUD(){let h=$('ccHud');if(h)return h;h=document.createElement('div');h.id='ccHud';h.style.cssText='position:fixed;inset:0;z-index:41;pointer-events:none;display:none;font-family:inherit;color:#fff';
+  h.innerHTML=`<style>#ccHud .bx{position:absolute;background:rgba(10,16,20,.66);border-radius:12px;padding:8px 12px;font-weight:700}#ccHud .tb{pointer-events:auto;position:absolute;width:74px;height:74px;border-radius:50%;background:rgba(10,16,20,.55);border:2px solid rgba(255,255,255,.35);color:#fff;font-size:26px;font-weight:800;touch-action:none;user-select:none}#ccHud .tb.on{background:rgba(63,224,176,.55)}#ccCd{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);font-size:110px;font-weight:900;text-shadow:0 4px 18px rgba(0,0,0,.5)}#ccFl{position:absolute;left:50%;top:22%;transform:translateX(-50%);font-size:28px;font-weight:800;opacity:0;transition:opacity .3s;text-shadow:0 2px 8px rgba(0,0,0,.6)}</style>
+  <div class="bx" style="left:14px;top:14px;font-size:15px;line-height:1.35"><div style="font-size:30px" id="ccPos">1/4</div><div id="ccLap">Lap 1/3</div></div>
+  <div class="bx" style="left:50%;top:14px;transform:translateX(-50%);text-align:center"><div id="ccTime" style="font-size:28px;font-variant-numeric:tabular-nums">0:00.00</div><div id="ccLapT" style="font-size:13px;opacity:.85">Lap 0:00.00</div></div>
+  <div class="bx" style="right:14px;top:14px;text-align:right;font-size:13px"><div>Best lap</div><div id="ccBest" style="font-size:20px">—</div><div id="ccSpd" style="font-size:13px;opacity:.85">0 mph</div></div>
+  <button class="tb" id="ccQuit" style="right:14px;top:96px;width:44px;height:44px;font-size:18px">✕</button>
+  <div id="ccCd"></div><div id="ccFl"></div>
+  <button class="tb" data-k="left" style="left:18px;bottom:24px">◀</button><button class="tb" data-k="right" style="left:104px;bottom:24px">▶</button>
+  <button class="tb" data-k="down" style="right:104px;bottom:24px;font-size:15px">BRAKE</button><button class="tb" data-k="up" style="right:18px;bottom:24px;font-size:17px">GAS</button>
+  <button class="tb" id="ccHornB" style="right:18px;bottom:110px;font-size:24px">📯</button>`;
+  document.body.appendChild(h);
+  for(const b of h.querySelectorAll('[data-k]')){const k=b.dataset.k;const on=e=>{e.preventDefault();CC.keys[k]=true;b.classList.add('on')},off=e=>{e.preventDefault();CC.keys[k]=false;b.classList.remove('on')};b.addEventListener('pointerdown',on);b.addEventListener('pointerup',off);b.addEventListener('pointerleave',off);b.addEventListener('pointercancel',off)}
+  $('ccHornB').addEventListener('pointerdown',e=>{e.preventDefault();ccHorn()});$('ccQuit').onclick=()=>ccExit();return h}
+function ccFlash(t){const f=$('ccFl');if(!f)return;f.textContent=t;f.style.opacity=1;clearTimeout(CC.flT);CC.flT=setTimeout(()=>{f.style.opacity=0},1400)}
+function ccHudUpd(){const o=ccOrder();const me=CC.me;const pos=o.indexOf(me)+1;$('ccPos').textContent=pos+'/'+o.length;$('ccLap').textContent='Lap '+Math.min(CC.lapsN,Math.max(1,me.laps.length+1))+'/'+CC.lapsN;
+  const t=me.fin!=null?me.fin:Math.max(0,CC.t);$('ccTime').textContent=ccFmt(t);$('ccLapT').textContent='Lap '+ccFmt(me.lapN!=null&&me.fin==null?CC.t-me.lapStart:(me.laps[me.laps.length-1]||0));
+  const sb=(ccStore().best[CC.T.id]||{}).lap;const b=[me.best,sb].filter(x=>x!=null);$('ccBest').textContent=b.length?ccFmt(Math.min(...b)):'—';$('ccSpd').textContent=Math.round(Math.abs(me.v)*2.237)+' mph';
+  const cd=$('ccCd');const txt=!CC.go?String(Math.max(1,Math.ceil(-CC.t))):(CC.t<1?'GO!':'');if(cd.textContent!==txt)cd.textContent=txt;cd.style.color=CC.go?'#3fe0b0':'#ffd54a'}
+let ccRAF=0;
+function ccLoop(now){if(!G.cartOn)return;ccRAF=requestAnimationFrame(ccLoop);const dt=Math.min(.05,(now-(CC.last||now))/1000)*(window.CC_TS||1);CC.last=now;CC.dtLast=dt;
+  const sub=Math.ceil(dt/.02);for(let k=0;k<sub;k++)ccStep(dt/sub);if(CC.hornT>0)CC.hornT-=dt;ccEngineUpd();ccDraw();ccHudUpd()}
+function ccKey(e,down){if(!G.cartOn)return;const m={ArrowUp:'up',KeyW:'up',ArrowDown:'down',KeyS:'down',ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right'}[e.code];
+  if(m){CC.keys[m]=down;e.preventDefault();e.stopImmediatePropagation();return}if(e.code==='KeyH'||e.code==='Space'){if(down&&!e.repeat)ccHorn();e.preventDefault();e.stopImmediatePropagation();return}
+  if(e.code==='Escape'&&down){ccExit();e.preventDefault();e.stopImmediatePropagation()}}
+window.addEventListener('keydown',e=>ccKey(e,true),true);window.addEventListener('keyup',e=>ccKey(e,false),true);
+function ccStart(T,col){ccGL();ccNewRace(T,col);hideScreens();G.cartOn=true;CC.last=0;CCR.cv.style.display='block';ccHUD().style.display='block';const hud=$('hud');if(hud)hud.classList.remove('on');ccAC();ccEngine();cancelAnimationFrame(ccRAF);ccRAF=requestAnimationFrame(ccLoop)}
+function ccExit(){G.cartOn=false;cancelAnimationFrame(ccRAF);ccEngineStop();if(CCR.cv)CCR.cv.style.display='none';const h=$('ccHud');if(h)h.style.display='none';CC.keys={};G.last=0;showMenu()}
+function ccResults(){CC.shownRes=true;const o=ccOrder();const me=CC.me;// CPUs still running: project their finish time from current pace
+  for(const c of o)if(c.fin==null){const rem=CC.lapsN*CC.L.N-c.prog;const pace=c.prog/Math.max(1,CC.t);c.est=CC.t+rem/Math.max(3,pace)}
+  const rows=CC.carts.slice().sort((a,b)=>(a.fin??a.est)-(b.fin??b.est));const pos=rows.indexOf(me)+1;const b=ccStore().best[CC.T.id]||{};
+  const h=$('ccHud');if(h)h.style.display='none';
+  const s=show('scSetup',`<div class="pn" id="ccRes"><div class="hdr"><h2>Cart Chase · Results</h2></div>
+   <div style="text-align:center;margin:6px 0 10px"><div style="font-size:44px;font-weight:900;color:${pos===1?'#ffd54a':'#e8eef2'}">${pos===1?'🏆 1st':['','1st','2nd','3rd','4th'][pos]}</div><div>${esc(CC.T.name)} · ${CC.lapsN} laps · race ${ccFmt(me.fin)}</div>
+   <div style="margin-top:4px">Your best lap <b>${ccFmt(me.best)}</b>${CC.newBest?' · <b style="color:#3fe0b0">NEW BEST LAP</b>':''} · Track best ${ccFmt(b.lap)}</div></div>
+   <table style="width:100%;border-collapse:collapse;font-size:15px"><tr style="opacity:.7;font-size:12px"><td>Pos</td><td>Driver</td><td style="text-align:right">Time</td><td style="text-align:right">Best lap</td></tr>
+   ${rows.map((c,i)=>`<tr style="${c.me?'background:rgba(63,224,176,.15);font-weight:700':''}"><td style="padding:6px 4px">${i+1}</td><td><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:rgb(${(CC_COLS[c.col]||[1,1,1]).map(v=>Math.round(v*255)).join(',')});margin-right:6px;vertical-align:-1px;border:1px solid #555"></span>${esc(c.name)}${c.me?' (you)':''}</td><td style="text-align:right">${c.fin!=null?ccFmt(c.fin):ccFmt(c.est)+'*'}</td><td style="text-align:right">${ccFmt(c.best)}</td></tr>`).join('')}</table>
+   <div class="gnote" style="font-size:12px;opacity:.7">* still on track when you finished; their time is projected.</div>
+   <button class="btn" id="ccAgain" style="margin-top:10px">Race again</button><button class="btn alt" id="ccTracks">Choose another track</button><button class="btn alt" id="ccMenu">Main menu</button></div>`);
+  s.style.zIndex=45;const done=()=>{s.style.zIndex='';G.cartOn=false;cancelAnimationFrame(ccRAF);ccEngineStop();if(CCR.cv)CCR.cv.style.display='none'};
+  $('ccAgain').onclick=()=>{s.style.zIndex='';ccStart(CC.T,me.col)};$('ccTracks').onclick=()=>{done();showCartTracks()};$('ccMenu').onclick=()=>{done();G.last=0;showMenu()}}
+function showCartTracks(){const st=ccStore();const s=show('scSetup',`<div class="pn"><div class="hdr"><button class="ib" id="ccB">‹</button><h2>Cart Part Only · Cart Chase</h2></div>
+  <div class="gnote">Race 3 computer carts over ${CC_TRACKS[0].laps} laps on a made-up track. Steer with ←/→ (or A/D), Gas ↑/W, Brake ↓/S, horn H or Space. On touch, use the on-screen buttons.</div><div class="sec">Pick a track</div><div class="list">
+  ${CC_TRACKS.map((t,i)=>{const b=st.best[t.id]||{};const L=ccBuildLine(t.pts);return `<button class="cc" data-t="${i}"><div class="rk">${i+1}</div><div><div class="nm">${esc(t.name)}</div><div class="lo">${esc(t.desc)} · ${(L.N/1000).toFixed(2)} km lap · best lap ${ccFmt(b.lap)}</div></div></button>`}).join('')}</div></div>`);
+  $('ccB').onclick=showMenu;s.querySelector('.list').onclick=e=>{const b=e.target.closest('.cc');if(b)showCartColors(CC_TRACKS[+b.dataset.t])}}
+function showCartColors(T){const st=ccStore();let col=CC_COLS[st.col]?st.col:'red';const draw=()=>{const s=show('scSetup',`<div class="pn"><div class="hdr"><button class="ib" id="ccB">‹</button><h2>${esc(T.name)} · Cart color</h2></div>
+  <div class="sec">Pick your cart color</div><div class="seg" id="ccCol" style="flex-wrap:wrap;gap:8px">${CC_COLN.map(c=>`<button data-c="${c}" class="${c===col?'sel':''}" style="flex:1 1 22%;padding:10px 4px"><span style="display:block;margin:0 auto 4px;width:44px;height:26px;border-radius:7px;background:rgb(${CC_COLS[c].map(v=>Math.round(v*255)).join(',')});border:2px solid ${c===col?'#3fe0b0':'#666'}"></span>${c[0].toUpperCase()+c.slice(1)}</button>`).join('')}</div>
+  <button class="btn" id="ccGo" style="margin-top:14px">Start race</button></div>`);
+  $('ccB').onclick=showCartTracks;s.querySelector('#ccCol').onclick=e=>{const b=e.target.closest('button');if(b){col=b.dataset.c;draw()}};$('ccGo').onclick=()=>{const o=ccStore();o.col=col;ccSave(o);ccStart(T,col)}};draw()}
+{const _sm2=showMenu;showMenu=function(){const out=_sm2.apply(this,arguments);try{const m=document.querySelector('#scMenu .menu');if(m&&!$('mCart')){const b=document.createElement('button');b.className='btn alt';b.id='mCart';b.innerHTML='Cart Part Only<small>Cart Chase · race CPU carts on made-up tracks</small>';b.onclick=showCartTracks;const after=$('mCust')||$('mPlay');after.after(b)}}catch(e){console.warn(e)}return out}}
 
 </script>
 <script>(function(){function boot(){var s=document.createElement('script');s.text=document.getElementById('gsrc').textContent;document.body.appendChild(s)}
