@@ -9,6 +9,7 @@ Test build of **Tour Sim v2.1**. Play: https://jamesgregory5-svg.github.io/tour-
 - **Password gate** when the page opens (remembered for the browser session only).
 - Existing courses, saves, records and settings carry over.
 
-**Coming in v2.1:** six new courses, each compared against real-life photos: Lulu Country Club, Five Ponds Golf Course, Lake Charles Country Club, TPC Sawgrass (Stadium Course), St Andrews (Old Course) and Bethpage Black.
+**v2.0.1 (live now): new courses, batch 1.** Done: TPC Sawgrass (Stadium Course), St Andrews (Old Course) and Bethpage Black.
+In progress for v2.1: Five Ponds Golf Course, Lulu Country Club and Lake Charles Country Club. They are playable now, but their layouts are still being checked.
 
 Final release stays at [tour-sim-final](https://github.com/jamesgregory5-svg/tour-sim-final) until v2 is approved.
