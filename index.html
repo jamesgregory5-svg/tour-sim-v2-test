@@ -197,7 +197,7 @@ td.l,th.l{text-align:left}
 <div id="ldr" style="position:fixed;inset:0;z-index:9999;background:#0b1014;display:flex;align-items:center;justify-content:center;color:#e8eef2;font:700 28px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;letter-spacing:.18em;transition:opacity .6s ease">LOADING…</div><div id="fps"></div><div id="gimme"><div class="gb"><b>GIMME</b><span id="gimmeS"></span></div></div>
 <script type="text/x-tour" id="gsrc">
 'use strict';
-const VERSION='v2.2';
+const VERSION='v2.2.1';
 const TAU=Math.PI*2,DEG=Math.PI/180;
 const clamp=(v,a,b)=>v<a?a:v>b?b:v,lerp=(a,b,t)=>a+(b-a)*t,smooth=t=>t*t*(3-2*t);
 const pad=n=>String(n).padStart(2,'0');
@@ -2588,11 +2588,17 @@ in vec3 aP;in vec3 aC;uniform mat4 uM,uVP;uniform vec3 uT,uE;out vec3 vC;out flo
   gl.attachShader(p,sh(gl.FRAGMENT_SHADER,`#version 300 es
 precision mediump float;in vec3 vC;in float vD;uniform vec3 uSky;out vec4 o;void main(){float f=clamp((vD-90.)/380.,0.,.85);o=vec4(mix(vC,uSky,f),1.);}`));
   gl.linkProgram(p);CCR.p=p;CCR.u={};for(const n of['uM','uVP','uT','uE','uSky'])CCR.u[n]=gl.getUniformLocation(p,n);
-  CCR.cube=ccMesh(ccCubeTris());return CCR}
+  CCR.cube=ccMesh(ccCubeTris());CCR.wheel=ccMesh(ccWheelTris());return CCR}
 function ccMesh(a){const gl=CCR.gl;const v=gl.createVertexArray();gl.bindVertexArray(v);const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(a),gl.STATIC_DRAW);
   const lp=gl.getAttribLocation(CCR.p,'aP'),lc=gl.getAttribLocation(CCR.p,'aC');gl.enableVertexAttribArray(lp);gl.vertexAttribPointer(lp,3,gl.FLOAT,false,24,0);gl.enableVertexAttribArray(lc);gl.vertexAttribPointer(lc,3,gl.FLOAT,false,24,12);return{v,n:a.length/6}}
 function ccCubeTris(){const o=[];const f=(a,b,c,d,s)=>{for(const q of[a,b,c,a,c,d])o.push(q[0],q[1],q[2],s,s,s)};const V=(x,y,z)=>[x-.5,y-.5,z-.5];
   f(V(0,0,1),V(1,0,1),V(1,1,1),V(0,1,1),1);f(V(1,0,0),V(1,1,0),V(1,1,1),V(1,0,1),.86);f(V(0,0,0),V(0,0,1),V(0,1,1),V(0,1,0),.62);f(V(0,0,0),V(1,0,0),V(1,0,1),V(0,0,1),.74);f(V(0,1,0),V(0,1,1),V(1,1,1),V(1,1,0),.7);f(V(0,0,0),V(0,1,0),V(1,1,0),V(1,0,0),.4);return o}
+function ccWheelTris(){const o=[],n=18;const P=(r,a,y)=>[Math.cos(a)*r,y,Math.sin(a)*r];const push=(q,c)=>o.push(q[0],q[1],q[2],c[0],c[1],c[2]);
+  for(let i=0;i<n;i++){const a=i/n*Math.PI*2,b=(i+1)/n*Math.PI*2;const sh=.55+.45*Math.max(0,Math.sin((a+b)/2+.8));const t=[.09*sh+.02,.09*sh+.02,.1*sh+.02];
+    for(const q of[P(.5,a,-.5),P(.5,b,-.5),P(.5,b,.5),P(.5,a,-.5),P(.5,b,.5),P(.5,a,.5)])push(q,t);
+    for(const y of[-.5,.5]){const spoke=(i%6)<1;const tire=[.07,.07,.08],hub=spoke?[.95,.8,.2]:[.72,.73,.76];
+      for(const q of[[0,y,0],P(.3,a,y),P(.3,b,y)])push(q,hub);for(const q of[P(.3,a,y),P(.5,a,y),P(.5,b,y),P(.3,a,y),P(.5,b,y),P(.3,b,y)])push(q,tire)}}
+  return o}
 function ccTRS(x,y,z,h,sx,sy,sz,ox,oy,oz){const c=Math.cos(h),s=Math.sin(h);return new Float32Array([c*sx,s*sx,0,0,-s*sy,c*sy,0,0,0,0,sz,0,x+c*ox-s*oy,y+s*ox+c*oy,z+oz,1])}
 const CC_I4=new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);
 function ccPersp(fov,asp,n,f){const t=1/Math.tan(fov/2);return new Float32Array([t/asp,0,0,0,0,t,0,0,0,0,(f+n)/(n-f),-1,0,0,2*f*n/(n-f),0])}
@@ -2652,7 +2658,7 @@ function ccStep(dt){const L=CC.L;if(!L)return;CC.t+=dt;if(!CC.go&&CC.t>=0){CC.go
     const q=ccNear(L,c.x,c.y,c.idx);const on=Math.abs(q.lat)<=CC_W/2+CC_CURB;const vmax=on?14:5.5;
     if(thr&&c.v<vmax)c.v+=7*dt*(1-c.v/(vmax+2));if(c.v>vmax)c.v-=(c.v-vmax)*2.2*dt;if(brk)c.v=c.v>0?Math.max(0,c.v-15*dt):Math.max(-3,c.v-4*dt);if(!thr&&!brk)c.v*=1-.5*dt;
     const yr=Math.min(1.9,9/Math.max(1,Math.abs(c.v)))*clamp(Math.abs(c.v)/4,0,1)*Math.sign(c.v||1);c.h+=st*yr*dt;
-    c.x+=Math.cos(c.h)*c.v*dt;c.y+=Math.sin(c.h)*c.v*dt;
+    c.x+=Math.cos(c.h)*c.v*dt;c.y+=Math.sin(c.h)*c.v*dt;c.dist=(c.dist||0)+c.v*dt;
     const q2=ccNear(L,c.x,c.y,c.idx);let di=q2.i-c.idx;if(di>L.N/2)di-=L.N;if(di<-L.N/2)di+=L.N;c.prog+=di;c.idx=q2.i;
     if(Math.abs(q2.lat)>CC_W/2+40){const P=L.P[q2.i],h=L.H[q2.i];c.x=P[0];c.y=P[1];c.h=h;c.v=0}// way off: reset to the track
     const lapsDone=Math.floor(c.prog/L.N);if(c.prog>=0&&c.lapN==null){c.lapN=0;c.lapStart=CC.t}
@@ -2670,7 +2676,7 @@ function ccDraw(){const R=CCR,gl=R.gl,cv=R.cv;const dpr=Math.min(devicePixelRati
   const me=CC.me;const want={x:me.x-Math.cos(me.h)*7.5,y:me.y-Math.sin(me.h)*7.5,z:3.3,h:me.h};
   if(!CC.cam)CC.cam=Object.assign({},want);else{const k=1-Math.exp(-(CC.dtLast||.016)*5);let dh=want.h-CC.cam.h;while(dh>Math.PI)dh-=2*Math.PI;while(dh<-Math.PI)dh+=2*Math.PI;CC.cam.h+=dh*k;
     CC.cam.x=me.x-Math.cos(CC.cam.h)*7.5;CC.cam.y=me.y-Math.sin(CC.cam.h)*7.5;CC.cam.z+=(want.z-CC.cam.z)*k}
-  const e=[CC.cam.x,CC.cam.y,CC.cam.z],t=[me.x+Math.cos(CC.cam.h)*6,me.y+Math.sin(CC.cam.h)*6,1.1];
+  let e=[CC.cam.x,CC.cam.y,CC.cam.z],t=[me.x+Math.cos(CC.cam.h)*6,me.y+Math.sin(CC.cam.h)*6,1.1];if(CC.camOv){const o=CC.camOv(me);e=o.e;t=o.t}
   const VP=ccMul(ccPersp(1.05,W/H,.3,900),ccLook(e,t));gl.uniformMatrix4fv(R.u.uVP,false,VP);gl.uniform3fv(R.u.uE,e);gl.uniform3fv(R.u.uSky,sky);
   gl.uniformMatrix4fv(R.u.uM,false,CC_I4);gl.uniform3fv(R.u.uT,[1,1,1]);gl.bindVertexArray(CC.mesh.v);gl.drawArrays(gl.TRIANGLES,0,CC.mesh.n);
   gl.bindVertexArray(R.cube.v);const box=(b)=>{gl.uniformMatrix4fv(R.u.uM,false,ccTRS(b[0],b[1],b[2],b[3],b[4],b[5],b[6],0,0,0));gl.uniform3fv(R.u.uT,b[7]);gl.drawArrays(gl.TRIANGLES,0,R.cube.n)};
@@ -2681,7 +2687,8 @@ function ccCartDraw(c,gl,R){const col=CC_COLS[c.col]||[1,1,1];const part=(ox,oy,
   part(0,0,.62,2.5,1.3,.55,col);part(.95,0,.95,.55,1.28,.35,col);part(-.25,0,1.05,.7,1.2,.5,[.18,.18,.2]);part(-.55,0,1.45,.25,1.2,.8,dk);
   for(const s of[-1,1]){part(.85,s*.58,1.6,.08,.08,1.6,[.2,.2,.22]);part(-.95,s*.58,1.6,.08,.08,1.6,[.2,.2,.22])}
   part(-.05,0,2.42,2.2,1.4,.1,wh);part(-1.1,0,.9,.4,1.1,.6,[.3,.3,.32]);
-  for(const [ox,oy] of[[.8,.62],[.8,-.62],[-.8,.62],[-.8,-.62]])part(ox,oy,.28,.56,.24,.56,blk);
+  {const sp=(c.dist||0)/.28,cs=Math.cos(sp),sn=Math.sin(sp);const Ry=new Float32Array([cs*.56,0,-sn*.56,0,0,.24,0,0,sn*.56,0,cs*.56,0,0,0,0,1]);gl.bindVertexArray(R.wheel.v);gl.uniform3fv(R.u.uT,[1,1,1]);
+   for(const [ox,oy] of[[.8,.62],[.8,-.62],[-.8,.62],[-.8,-.62]]){gl.uniformMatrix4fv(R.u.uM,false,ccMul(ccTRS(c.x,c.y,0,c.h,1,1,1,ox,oy,.28),Ry));gl.drawArrays(gl.TRIANGLES,0,R.wheel.n)}gl.bindVertexArray(R.cube.v)}
   part(1.27,.42,.75,.04,.22,.14,[1,1,.8]);part(1.27,-.42,.75,.04,.22,.14,[1,1,.8]);if(c.me&&CC.hornT>0)part(1.3,0,.75,.05,.3,.1,[1,.9,.2])}
 // ---------- audio ----------
 function ccAC(){try{if(!CC.ac)CC.ac=new (window.AudioContext||window.webkitAudioContext)();if(CC.ac.state==='suspended')CC.ac.resume();return CC.ac}catch(e){return null}}

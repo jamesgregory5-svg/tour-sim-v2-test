@@ -2,7 +2,10 @@
 
 Test build of **Tour Sim v2.1**. Play: https://jamesgregory5-svg.github.io/tour-sim-v2-test/
 
-## v2.2 (live now)
+## v2.2.1 (live now)
+- Cart Chase: the carts now have round, spinning wheels.
+
+## v2.2
 - **Cart Part Only: Cart Chase** (main menu). Race 3 computer carts over 3 laps on one of 4 made-up tracks: Fairway Oval, Pine Twister, Lakeside Loop and Clubhouse Hairpins. Pick your cart color. Steer, gas and brake with the keyboard or the touch buttons, and use the horn with H or Space. A start countdown, position, lap and timer display, a results screen, and the best lap saved for each track.
 
 ## Earlier in v2
