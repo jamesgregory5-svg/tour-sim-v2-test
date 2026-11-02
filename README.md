@@ -2,7 +2,10 @@
 
 Test build of **Tour Sim v2.1**. Play: https://jamesgregory5-svg.github.io/tour-sim-v2-test/
 
-## v2.2.1 (live now)
+## v2.2.2 (live now)
+- Cart Chase uses the six game difficulty levels (Reggie to Woods): higher levels make your cart and the CPU carts faster.
+
+## v2.2.1
 - Cart Chase: the carts now have round, spinning wheels.
 
 ## v2.2
